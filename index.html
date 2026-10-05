@@ -13,19 +13,40 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/svg+xml" href="icons/icon.svg">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
-<link rel="stylesheet" href="css/style.css">
+<!-- Fonts: preconnect + display=swap so text renders instantly even on slow phones -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
+<link rel="stylesheet" href="css/style.css?v=2">
 </head>
 <body>
 
-<div class="card" role="main">
-    <h2><span>👕</span> today's outfit</h2>
-    <div class="sub">cloud synced · Google Drive photos · click refresh to pick</div>
-
-    <div class="status-badge" id="statusBadge">
-        🔁 0 / 0 picked
-        <span class="sync-badge" id="syncBadge">🔄 connecting...</span>
-        <span class="delete-mode-indicator inactive" id="deleteIndicator">🔒 locked</span>
+<!-- One-time app intro (auto-fades) -->
+<div class="app-loader" id="appLoader" aria-hidden="true">
+    <div class="app-loader-inner">
+        <div class="app-loader-icon">👕</div>
+        <div class="app-loader-text">Outfit Picker</div>
+        <div class="app-loader-bar"><span></span></div>
     </div>
+</div>
+
+<header class="app-header">
+    <div class="brand">
+        <div class="brand-logo" aria-hidden="true">👕</div>
+        <div class="brand-text">
+            <h1>Outfit&nbsp;Picker</h1>
+            <p>Cloud synced · Google Drive photos · phone &amp; laptop</p>
+        </div>
+    </div>
+    <div class="header-chips">
+        <span class="chip counter-chip" id="statusCounter">🔁 0 / 0 picked</span>
+        <span class="chip sync-badge offline" id="syncBadge">🔄 connecting...</span>
+        <span class="chip delete-mode-indicator inactive" id="deleteIndicator">🔒 locked</span>
+    </div>
+</header>
+
+<main class="card" role="main">
+    <div class="status-badge visually-hidden" id="statusBadge" aria-hidden="true"></div>
 
     <div class="folder-tabs">
         <button class="folder-tab active" data-folder="cloth" id="tabCloth">👔 Cloth Folder</button>
@@ -67,18 +88,19 @@
         <div class="item-grid" id="itemList"></div>
     </div>
 
-    <div class="popup-area">
+    <section class="popup-area">
+        <div class="popup-title"><span aria-hidden="true">✨</span> Today's Pick</div>
         <div class="popup-display" id="popupDisplay">
-            <span class="popup-empty">✨ click refresh to pick an outfit</span>
+            <span class="popup-empty">click refresh to pick an outfit</span>
         </div>
-    </div>
+    </section>
 
     <div class="btn-group">
         <button class="btn btn-primary" id="refreshBtn"><i>⟳</i> refresh</button>
-        <button class="btn btn-outline" id="resetBtn"><i>↺</i> reset all</button>
-        <button class="btn btn-clear" id="clearHistoryBtn"><i>🗑️</i> clear history</button>
         <button class="btn btn-email" id="emailBtn"><i>✉</i> email</button>
         <button class="btn btn-whatsapp" id="whatsappBtn"><i>💬</i> whatsapp</button>
+        <button class="btn btn-outline" id="resetBtn"><i>↺</i> reset all</button>
+        <button class="btn btn-clear" id="clearHistoryBtn"><i>🗑️</i> clear history</button>
         <button class="btn btn-danger" id="deleteModeBtn"><i>🔒</i> delete mode</button>
         <button class="btn btn-outline" id="manualAddBtn"><i>✍️</i> add manually</button>
         <button class="btn btn-sync" id="syncBtn"><i>🔄</i> force sync</button>
@@ -86,19 +108,19 @@
 
     <div class="reset-notice" id="resetNotice">add some items to get started!</div>
 
-    <div class="history-section">
-        <h3>📜 outfit history <span style="font-size:0.8rem; color:#475f7a;">(click tags · 🗑️ to delete)</span></h3>
+    <section class="history-section">
+        <h3>📜 Outfit History <span class="history-hint">(tap tags · 🗑️ to delete)</span></h3>
         <div class="history-list" id="historyList">
             <div class="history-empty">no outfits picked yet</div>
         </div>
-    </div>
+    </section>
 
-    <div class="footer-meta">
+    <footer class="footer-meta">
         <span id="remainingCount">📋 0 remaining</span>
         <span id="historyCount">📚 0 total picked</span>
         <span id="lastSyncInfo">🔄 never synced</span>
-    </div>
-</div>
+    </footer>
+</main>
 
 <!-- Category + Date Modal -->
 <div class="modal-overlay" id="categoryModal">
