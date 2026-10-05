@@ -120,6 +120,7 @@
     const whatsappBtn = document.getElementById('whatsappBtn');
     const deleteModeBtn = document.getElementById('deleteModeBtn');
     const statusBadge = document.getElementById('statusBadge');
+    const statusCounter = document.getElementById('statusCounter');
     const syncBadge = document.getElementById('syncBadge');
     const remainingCount = document.getElementById('remainingCount');
     const historyCount = document.getElementById('historyCount');
@@ -609,13 +610,10 @@
         const totalAll = ALL_ITEMS.length;
         const pAll = ALL_ITEMS.filter(it => isPicked(it.folder, it.name)).length;
 
-        // NOTE: only the counter text is updated here. The #syncBadge and
-        // #deleteIndicator child elements are kept intact (they used to be
-        // re-created with duplicate IDs on every render, which detached the
-        // cached references and broke sync-status updates).
-        const counterNode = Array.from(statusBadge.childNodes)
-            .find(n => n.nodeType === Node.TEXT_NODE && n.textContent.trim() !== '');
-        if (counterNode) counterNode.textContent = `🔁 ${pAll} / ${totalAll} picked`;
+        // Counter chip lives in the sticky header now. The hidden #statusBadge
+        // div is kept only for backward compatibility (it used to hold the
+        // sync/delete chips with duplicate IDs, which broke cached references).
+        if (statusCounter) statusCounter.textContent = `🔁 ${pAll} / ${totalAll} picked`;
 
         const folderItems = getItemsByFolder(currentFolder);
         const pCount = folderItems.filter(it => isPicked(currentFolder, it.name)).length;
@@ -1939,6 +1937,13 @@
     // ============================================================
     // INIT
     // ============================================================
+    function hideAppLoader() {
+        const loader = document.getElementById('appLoader');
+        if (!loader) return;
+        loader.classList.add('hide');
+        setTimeout(() => loader.remove(), 600);
+    }
+
     async function init() {
         loadLocalBackup();
         loadRecipients();
@@ -2106,8 +2111,12 @@
         });
 
         setInterval(saveLocalBackup, 5000);
+        hideAppLoader();
         console.log('👕 Outfit Picker ready!');
     }
+
+    // Safety net: never let the intro screen linger if something throws during init.
+    window.addEventListener('load', () => setTimeout(hideAppLoader, 1200));
 
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
     else init();
