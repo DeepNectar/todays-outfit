@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="description" content="Outfit Picker — cloud synced outfit chooser PWA">
+<meta name="theme-color" content="#2d6a4f">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Outfit Picker">
+<title>👕 Outfit Picker · Cloud Synced</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/svg+xml" href="icons/icon.svg">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="card" role="main">
+    <h2><span>👕</span> today's outfit</h2>
+    <div class="sub">cloud synced · Google Drive photos · click refresh to pick</div>
+
+    <div class="status-badge" id="statusBadge">
+        🔁 0 / 0 picked
+        <span class="sync-badge" id="syncBadge">🔄 connecting...</span>
+        <span class="delete-mode-indicator inactive" id="deleteIndicator">🔒 locked</span>
+    </div>
+
+    <div class="folder-tabs">
+        <button class="folder-tab active" data-folder="cloth" id="tabCloth">👔 Cloth Folder</button>
+        <button class="folder-tab" data-folder="inner" id="tabInner">🩲 Inner Folder</button>
+    </div>
+
+    <div class="category-section">
+        <label for="categorySelect">📂 Category:</label>
+        <select class="category-select" id="categorySelect">
+            <option value="__all__">📋 All Categories</option>
+        </select>
+        <span class="category-count" id="categoryCount">0 items</span>
+        <button class="drive-folder-btn" id="openDriveFolderBtn" title="Open this category's Google Drive folder">📂 Open Drive Folder</button>
+    </div>
+
+    <div class="add-section" id="addSection">
+        <input type="text" id="newItemInput" placeholder="e.g. Blue Office Shirt" maxlength="80">
+        <input type="text" id="newCategoryInput" placeholder="Category" maxlength="60">
+        <input type="text" id="newItemLink" placeholder="Google Drive share link" style="flex:2;min-width:200px;">
+        <button class="btn-add" id="addItemBtn">➕ add</button>
+    </div>
+
+    <div class="bulk-section">
+        <label for="bulkFileInput">📂 Import CSV</label>
+        <input type="file" id="bulkFileInput" accept=".csv">
+        <button class="bulk-btn export-excel-btn" id="exportExcelBtn">📤 Export CSV</button>
+        <span class="bulk-hint">CSV format: "Item Name, Category, Drive Link" · saved to cloud automatically</span>
+    </div>
+
+    <div class="list-container">
+        <div class="list-header" id="listHeader">
+            <div class="select-all-container" id="selectAllContainer" style="display:none;">
+                <input type="checkbox" id="selectAllCheckbox">
+                <label for="selectAllCheckbox">Select All</label>
+                <span id="selectedCount" style="font-size:0.8rem; color:#475f7a;">(0 selected)</span>
+            </div>
+            <button class="bulk-delete-btn" id="bulkDeleteBtn">🗑️ Delete Selected</button>
+        </div>
+        <div class="item-grid" id="itemList"></div>
+    </div>
+
+    <div class="popup-area">
+        <div class="popup-display" id="popupDisplay">
+            <span class="popup-empty">✨ click refresh to pick an outfit</span>
+        </div>
+    </div>
+
+    <div class="btn-group">
+        <button class="btn btn-primary" id="refreshBtn"><i>⟳</i> refresh</button>
+        <button class="btn btn-outline" id="resetBtn"><i>↺</i> reset all</button>
+        <button class="btn btn-clear" id="clearHistoryBtn"><i>🗑️</i> clear history</button>
+        <button class="btn btn-email" id="emailBtn"><i>✉</i> email</button>
+        <button class="btn btn-whatsapp" id="whatsappBtn"><i>💬</i> whatsapp</button>
+        <button class="btn btn-danger" id="deleteModeBtn"><i>🔒</i> delete mode</button>
+        <button class="btn btn-outline" id="manualAddBtn"><i>✍️</i> add manually</button>
+        <button class="btn btn-sync" id="syncBtn"><i>🔄</i> force sync</button>
+    </div>
+
+    <div class="reset-notice" id="resetNotice">add some items to get started!</div>
+
+    <div class="history-section">
+        <h3>📜 outfit history <span style="font-size:0.8rem; color:#475f7a;">(click tags · 🗑️ to delete)</span></h3>
+        <div class="history-list" id="historyList">
+            <div class="history-empty">no outfits picked yet</div>
+        </div>
+    </div>
+
+    <div class="footer-meta">
+        <span id="remainingCount">📋 0 remaining</span>
+        <span id="historyCount">📚 0 total picked</span>
+        <span id="lastSyncInfo">🔄 never synced</span>
+    </div>
+</div>
+
+<!-- Category + Date Modal -->
+<div class="modal-overlay" id="categoryModal">
+    <div class="modal" style="max-width:520px;">
+        <h3>📂 Select Category & Date</h3>
+        <p>Choose a category and when you want to wear this outfit</p>
+        <select id="categoryModalSelect"><option value="__all__">📋 All Categories</option></select>
+        <div style="font-size:0.85rem; color:#475f7a; margin-bottom:0.8rem;" id="categoryModalCount"></div>
+
+        <div class="date-option" id="dateOptionGroup">
+            <label class="selected" id="todayLabel"><input type="radio" name="outfitDate" value="today" checked> 📅 Today</label>
+            <label id="tomorrowLabel"><input type="radio" name="outfitDate" value="tomorrow"> 📅 Tomorrow</label>
+            <label id="yesterdayLabel"><input type="radio" name="outfitDate" value="yesterday"> 📅 Yesterday</label>
+            <label id="customLabel"><input type="radio" name="outfitDate" value="custom"> 📅 Custom</label>
+        </div>
+
+        <div class="custom-date-row" id="customDateRow">
+            <label for="customDateInput">🗓️ Pick a date:</label>
+            <input type="date" id="customDateInput">
+            <span class="custom-date-preview" id="customDatePreview"></span>
+        </div>
+
+        <div class="modal-buttons">
+            <button class="modal-cancel" id="categoryModalCancel">Cancel</button>
+            <button class="modal-confirm" id="categoryModalConfirm" style="background:#2d6a4f;">🎲 Pick Cloth</button>
+        </div>
+    </div>
+</div>
+
+<!-- BIG PHOTO POPUP -->
+<div class="modal-overlay" id="photoPopup">
+    <div class="photo-popup">
+        <h3 id="photoPopupTitle">👔 Cloth Picked</h3>
+        <img class="big-photo" id="photoPopupImg" alt="Picked cloth">
+        <div class="popup-meta">
+            <span class="cat" id="photoPopupCat">—</span>
+            <span class="date" id="photoPopupDate">—</span>
+        </div>
+        <div class="popup-buttons">
+            <button class="btn-cancel" id="photoPopupCancel">Cancel</button>
+            <button class="btn-again" id="photoPopupAgain">🔄 Pick Again</button>
+            <button class="btn-next" id="photoPopupNext">✅ OK, Pick Inner →</button>
+        </div>
+    </div>
+</div>
+
+<!-- Inner Selection Modal -->
+<div class="modal-overlay" id="innerModal">
+    <div class="modal" style="max-width:560px;">
+        <h3>🩲 Choose an Inner</h3>
+        <p id="innerModalSubtitle">Pick an inner to go with your cloth</p>
+        <div class="inner-grid" id="innerGrid"></div>
+        <div class="modal-buttons">
+            <button class="modal-cancel" id="innerModalCancel">Cancel</button>
+            <button class="modal-confirm" id="innerModalConfirm" style="background:#2d6a4f;">✅ Confirm Outfit</button>
+        </div>
+    </div>
+</div>
+
+<!-- Final Confirmation Modal -->
+<div class="modal-overlay" id="finalModal">
+    <div class="photo-popup">
+        <h3>🎉 Final Outfit</h3>
+        <div id="finalOutfitPreview" style="display:flex;justify-content:center;gap:1rem;flex-wrap:wrap;margin-bottom:1rem;"></div>
+        <div class="modal-buttons">
+            <button class="modal-cancel" id="finalCancel" style="background:#dce8f5;color:#1b2a3d;">Back</button>
+            <button class="modal-confirm" id="finalConfirm" style="background:#2d6a4f;">✅ Save to History</button>
+        </div>
+    </div>
+</div>
+
+<!-- History Delete Modal -->
+<div class="modal-overlay" id="historyDeleteModal">
+    <div class="modal">
+        <h3>🔒 Delete History Entry</h3>
+        <p>Enter the password to delete this history entry</p>
+        <input type="password" id="historyDeletePassword" placeholder="Enter password" autocomplete="off">
+        <div class="error-text" id="historyDeleteError">❌ Incorrect password</div>
+        <div class="modal-buttons">
+            <button class="modal-cancel" id="historyDeleteCancel">Cancel</button>
+            <button class="modal-confirm" id="historyDeleteConfirm">🗑️ Delete Entry</button>
+        </div>
+    </div>
+</div>
+
+<!-- Password Modal -->
+<div class="modal-overlay" id="passwordModal">
+    <div class="modal">
+        <h3>🔒 Delete Items</h3>
+        <p>Enter the password to enable item deletion</p>
+        <input type="password" id="passwordInput" placeholder="Enter password" autocomplete="off">
+        <div class="error-text" id="passwordError">❌ Incorrect password</div>
+        <div class="modal-buttons">
+            <button class="modal-cancel" id="modalCancel">Cancel</button>
+            <button class="modal-confirm" id="modalConfirm">Unlock</button>
+        </div>
+    </div>
+</div>
+
+<!-- Clear History Modal -->
+<div class="modal-overlay" id="clearHistoryModal">
+    <div class="modal">
+        <h3>🗑️ Clear All History</h3>
+        <p>This will delete all outfit history and reset all items to available.<br><strong>Also cleared from the cloud!</strong></p>
+        <div class="modal-buttons">
+            <button class="modal-cancel" id="clearHistoryCancel">Cancel</button>
+            <button class="modal-confirm" id="clearHistoryConfirm">Yes, Clear All</button>
+        </div>
+    </div>
+</div>
+
+<!-- Bulk Delete Modal -->
+<div class="modal-overlay" id="bulkDeleteModal">
+    <div class="modal">
+        <h3>🗑️ Bulk Delete Items</h3>
+        <p>Are you sure you want to delete the following items?</p>
+        <div class="bulk-delete-count" id="bulkDeleteCount">0</div>
+        <p style="font-size:0.85rem; color:#475f7a;" id="bulkDeleteList"></p>
+        <div class="modal-buttons">
+            <button class="modal-cancel" id="bulkDeleteCancel">Cancel</button>
+            <button class="modal-confirm" id="bulkDeleteConfirm">🗑️ Delete All</button>
+        </div>
+    </div>
+</div>
+
+<!-- Manual Add Modal -->
+<div class="modal-overlay" id="manualAddModal">
+    <div class="modal" style="max-width:520px;">
+        <h3>✍️ Add History Entry Manually</h3>
+        <p>Fill in the details below to add an entry directly to your history</p>
+        <input type="text" id="manualItemName" placeholder="👔 Cloth name (required)" maxlength="80" autocomplete="off">
+        <input type="text" id="manualCategory" placeholder="📂 Category (optional)" maxlength="60" autocomplete="off">
+        <input type="text" id="manualInnerName" placeholder="🩲 Inner name (optional — blank = No Inner)" maxlength="80" autocomplete="off">
+
+        <div style="text-align:left; margin-bottom:0.4rem; font-size:0.85rem; color:#475f7a; font-weight:500; padding-left:0.5rem;">📅 Date:</div>
+        <select id="manualDateSelect">
+            <option value="today" selected>📅 Today</option>
+            <option value="tomorrow">📅 Tomorrow</option>
+            <option value="yesterday">📅 Yesterday</option>
+            <option value="custom">📅 Custom...</option>
+            <option value="none">🚫 No date tag</option>
+        </select>
+
+        <div class="custom-date-row" id="manualCustomDateRow">
+            <label for="manualCustomDateInput">🗓️ Pick a date:</label>
+            <input type="date" id="manualCustomDateInput">
+            <span class="custom-date-preview" id="manualCustomDatePreview"></span>
+        </div>
+
+        <select id="manualWearer" style="margin-top:0.3rem;">
+            <option value="">— Wearer not assigned —</option>
+            <option value="deep">👤 Deep</option>
+            <option value="honey">👤 Honey</option>
+            <option value="both">👤👤 Both</option>
+        </select>
+        <div class="error-text" id="manualAddError">❌ Please enter a cloth name</div>
+        <div class="modal-buttons">
+            <button class="modal-cancel" id="manualAddCancel" type="button">Cancel</button>
+            <button class="modal-confirm" id="manualAddConfirm" type="button" style="background:#2d6a4f;">✍️ Add to History</button>
+        </div>
+    </div>
+</div>
+
+<!-- Email Options Modal — 2 OPTIONS + AUTO-CLEAR -->
+<div class="email-options-modal" id="emailOptionsModal">
+    <div class="email-options-content">
+        <button class="close-btn" id="emailOptionsClose">✕</button>
+        <h3>📧 Email Options</h3>
+        <p class="subtitle">History will auto-clear 3 seconds after you send or copy</p>
+        <div class="email-subject-box">
+            <strong>📌 Subject:</strong> <code id="emailSubjectPreview">👕 Honey Outfit Log Selected by Me {Shinu} - —</code>
+        </div>
+
+        <div class="email-option-card">
+            <div class="header"><span class="icon">📧</span><span class="title">Open in Default Mail App</span><span class="badge">Plain Text</span></div>
+            <div class="description">Opens your mail app with a plain-text version + subject. <strong>History clears in 3s.</strong></div>
+            <button class="action-btn plain-btn" id="openOptionBtn">📧 Open Email</button>
+        </div>
+
+        <div class="email-option-card">
+            <div class="header"><span class="icon">💕</span><span class="title">Copy HTML</span><span class="badge">Best Visual</span></div>
+            <div class="description">Copies the full romantic HTML. <strong>History clears in 3s.</strong></div>
+            <button class="action-btn html-btn" id="htmlOptionBtn">💕 Copy HTML</button>
+        </div>
+    </div>
+</div>
+
+<!-- WhatsApp Modal -->
+<div class="wa-modal" id="waModal">
+    <div class="wa-content">
+        <h3>💬 Share on WhatsApp</h3>
+
+        <div class="wa-section-label">
+            <span>📱 Saved Recipients</span>
+            <a class="add-new-link" id="waAddNewToggle">➕ Add new</a>
+        </div>
+        <div class="wa-recipients" id="waRecipients"></div>
+
+        <div class="wa-add-form" id="waAddForm">
+            <input type="text" id="waNewName" placeholder="Name (e.g. My Love, Me)" maxlength="40" autocomplete="off">
+            <input type="tel" id="waNewNumber" placeholder="Number with country code (e.g. 919876543210)" autocomplete="off">
+            <div class="wa-add-buttons">
+                <button class="wa-cancel-add" id="waAddCancelBtn" type="button">Cancel</button>
+                <button class="wa-save-btn" id="waAddSaveBtn" type="button">💾 Save</button>
+            </div>
+        </div>
+
+        <div class="wa-preview-title">💕 Message Preview</div>
+        <div class="wa-preview" id="waPreview"></div>
+
+        <div class="wa-buttons">
+            <button class="wa-cancel" id="waCancelBtn">Cancel</button>
+            <button class="wa-send" id="waSendBtn" disabled>💬 Open WhatsApp</button>
+        </div>
+        <div class="wa-hint">
+            ✨ Tap a <strong>saved recipient</strong> to share.<br>
+            ✨ <strong>Last used number</strong> is auto-remembered.<br>
+            💕 Shares only the <strong>latest outfit</strong> — history is preserved.
+        </div>
+    </div>
+</div>
+
+<div class="toast-message" id="toast"></div>
+
+<!-- Supabase client: loaded ASYNCHRONOUSLY so it never blocks page startup -->
+<script>window.__supabaseReady = new Promise(function(resolve){ window.__onSupabaseLoaded = resolve; });</script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" async onload="window.__onSupabaseLoaded()"></script>
+<script src="js/config.js" defer></script>
+<script src="js/sw-register.js" defer></script>
+<script src="js/app.js" defer></script>
+
+</body>
+</html>
