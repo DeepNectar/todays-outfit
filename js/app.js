@@ -28,8 +28,20 @@
     // ============================================================
     // SUPABASE CONFIG (loaded from js/config.js — edit it there)
     // ============================================================
-    const SUPABASE_URL = (window.OUTFIT_CONFIG && window.OUTFIT_CONFIG.SUPABASE_URL) || '';
-    const SUPABASE_ANON_KEY = (window.OUTFIT_CONFIG && window.OUTFIT_CONFIG.SUPABASE_ANON_KEY) || '';
+    // NOTE: read the values LAZINESS at call time (see cloudCfg()) — js/config.js is
+    // loaded with "defer", so at this point in the script window.OUTFIT_CONFIG may not
+    // exist yet. Reading it once here used to permanently disable cloud sync.
+    function cleanUrl(u) {
+        if (!u) return '';
+        return String(u).trim().replace(/\/+$/, '');
+    }
+    function cloudCfg() {
+        const cfg = window.OUTFIT_CONFIG || {};
+        const url = cleanUrl(cfg.SUPABASE_URL);
+        const key = (cfg.SUPABASE_ANON_KEY || '').trim();
+        const ok = !!url && url.indexOf('YOUR_SUPABASE') === -1 && /^https:\/\/.+\.supabase\.co$/.test(url) && !!key;
+        return { url, key, ok };
+    }
 
     const TABLE_ITEMS   = 'outfit_items';
     const TABLE_HISTORY = 'outfit_history';
@@ -39,18 +51,24 @@
     // The Supabase CDN script now loads with "async" (so it never blocks page render).
     // We create the client as soon as it arrives — the UI is already up by then.
     function tryCreateSupabaseClient() {
-        if (supabaseClient) return;
-        if (SUPABASE_URL && SUPABASE_URL !== 'YOUR_SUPABASE_URL_HERE' && window.supabase) {
-            try {
-                supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-            } catch (e) {
-                console.error('Supabase init failed:', e);
-            }
+        if (supabaseClient) return supabaseClient;
+        const c = cloudCfg();
+        if (!c.ok) return null;
+        if (!window.supabase) return null;
+        try {
+            supabaseClient = window.supabase.createClient(c.url, c.key);
+            console.log('☁️ Supabase client ready for', c.url);
+        } catch (e) {
+            console.error('Supabase init failed:', e);
         }
+        return supabaseClient;
     }
-    tryCreateSupabaseClient();
-    if (!supabaseClient && window.__supabaseReady) {
+    // config.js + app.js are both deferred and run right before the async CDN script
+    // finishes, so we wait for __supabaseReady instead of calling this immediately.
+    if (window.__supabaseReady) {
         window.__supabaseReady.then(tryCreateSupabaseClient).catch(() => {});
+    } else {
+        tryCreateSupabaseClient();
     }
 
     // Safety net: a hanging cloud call must never freeze the app ("getting stuck").
@@ -60,6 +78,18 @@
             promise,
             new Promise((_, reject) => setTimeout(() => reject(new Error('cloud timeout')), ms))
         ]);
+    }
+
+    // Always obtain the client *before* touching the cloud. The Supabase CDN script
+    // loads async, so supabaseClient can legitimately be null for the first second or
+    // two after page load — previously that made sync silently do nothing.
+    async function ensureClient(waitMs) {
+        if (supabaseClient) return supabaseClient;
+        tryCreateSupabaseClient();
+        if (supabaseClient) return supabaseClient;
+        if (!window.__supabaseReady) return null;
+        try { await withTimeout(window.__supabaseReady, waitMs || 8000); } catch (e) { /* CDN slow/offline */ }
+        return tryCreateSupabaseClient();
     }
 
     const PASSWORD = "Deepnectar@1612@";
@@ -396,12 +426,16 @@
     // CLOUD SYNC
     // ============================================================
     async function pushAllToCloud() {
-        if (!supabaseClient) return false;
+        const client = await ensureClient();
+        if (!client) {
+            setSyncStatus('offline', '⚠️ no cloud');
+            return false;
+        }
         if (isSyncing) return false;
         isSyncing = true;
         setSyncStatus('syncing', '🔄 saving...');
         try {
-            await withTimeout(doPushAll(), CLOUD_TIMEOUT_MS);
+            await withTimeout(doPushAll(client), CLOUD_TIMEOUT_MS);
             lastSyncTime = Date.now();
             setSyncStatus('online', '☁️ synced');
             updateLastSyncInfo();
@@ -415,8 +449,9 @@
         }
     }
 
-    async function doPushAll() {
-            await supabaseClient.from(TABLE_ITEMS).delete().neq('id', 0);
+    async function doPushAll(client) {
+            const sb = client || supabaseClient;
+            await sb.from(TABLE_ITEMS).delete().neq('id', 0);
             if (ALL_ITEMS.length > 0) {
                 const rows = ALL_ITEMS.map(it => ({
                     name: it.name,
@@ -424,10 +459,10 @@
                     folder: it.folder,
                     drive_link: it.link || ''
                 }));
-                const { error } = await supabaseClient.from(TABLE_ITEMS).insert(rows);
+                const { error } = await sb.from(TABLE_ITEMS).insert(rows);
                 if (error) console.warn('items insert warn:', error);
             }
-            await supabaseClient.from(TABLE_HISTORY).delete().neq('id', 0);
+            await sb.from(TABLE_HISTORY).delete().neq('id', 0);
             if (history.length > 0) {
                 const rows = history.map(h => ({
                     cloth_name: h.cloth || '',
@@ -440,27 +475,28 @@
                     date_tag: h.dateTag || '',
                     wearer: h.wearer || ''
                 }));
-                const { error } = await supabaseClient.from(TABLE_HISTORY).insert(rows);
+                const { error } = await sb.from(TABLE_HISTORY).insert(rows);
                 if (error) console.warn('history insert warn:', error);
             }
-            await supabaseClient.from(TABLE_PICKED).delete().neq('id', 0);
+            await sb.from(TABLE_PICKED).delete().neq('id', 0);
             if (picked.length > 0) {
                 const rows = picked.map(k => {
                     const [folder, name] = k.split('::');
                     return { folder, item_name: name };
                 });
-                const { error } = await supabaseClient.from(TABLE_PICKED).insert(rows);
+                const { error } = await sb.from(TABLE_PICKED).insert(rows);
                 if (error) console.warn('picked insert warn:', error);
             }
     }
 
     async function pullAllFromCloud() {
-        if (!supabaseClient) return null;
+        const client = await ensureClient();
+        if (!client) return null;
         try {
             const [iRes, hRes, pRes] = await withTimeout(Promise.all([
-                supabaseClient.from(TABLE_ITEMS).select('*').order('id', { ascending: true }),
-                supabaseClient.from(TABLE_HISTORY).select('*').order('id', { ascending: true }),
-                supabaseClient.from(TABLE_PICKED).select('*').order('id', { ascending: true })
+                client.from(TABLE_ITEMS).select('*').order('id', { ascending: true }),
+                client.from(TABLE_HISTORY).select('*').order('id', { ascending: true }),
+                client.from(TABLE_PICKED).select('*').order('id', { ascending: true })
             ]), CLOUD_TIMEOUT_MS);
             if (iRes.error || hRes.error || pRes.error) {
                 console.warn('pull errors:', iRes.error, hRes.error, pRes.error);
@@ -492,7 +528,8 @@
     }
 
     async function syncNow(silent) {
-        if (!supabaseClient) {
+        const client = await ensureClient();
+        if (!client) {
             if (!silent) showToast('⚠️ Cloud not configured.', 3000);
             setSyncStatus('offline', '⚠️ no cloud');
             return;
@@ -521,7 +558,9 @@
     function startAutoSync() {
         if (autoSyncInterval) clearInterval(autoSyncInterval);
         autoSyncInterval = setInterval(async () => {
-            if (isSyncing || !supabaseClient || document.hidden) return;
+            if (isSyncing || document.hidden) return;
+            if (!cloudCfg().ok) return;              // keys not filled in yet
+            if (!(await ensureClient(3000))) return; // CDN still missing
             const before = JSON.stringify({ h: history, d: ALL_ITEMS, p: picked });
             const pulled = await pullAllFromCloud();
             if (pulled) {
@@ -1868,17 +1907,15 @@
     // BACKGROUND CLOUD STARTUP (never blocks the UI)
     // ============================================================
     async function startCloudSync() {
-        if (!supabaseClient && window.__supabaseReady) {
-            setSyncStatus('syncing', '🔄 connecting...');
-            try { await withTimeout(window.__supabaseReady, 8000); } catch (e) { /* CDN slow/offline */ }
-            tryCreateSupabaseClient();
-        }
-        if (!supabaseClient) {
+        const c = cloudCfg();
+        if (!c.ok) {
             setSyncStatus('offline', '⚠️ add Supabase keys');
             setTimeout(() => showToast('⚠️ Add your Supabase URL & Key to enable cloud sync', 4000), 800);
             return;
         }
         setSyncStatus('syncing', '🔄 connecting...');
+        // pullAllFromCloud() waits for the async CDN script itself, so a slow
+        // supabase.js load no longer means "cloud disabled".
         const ok = await pullAllFromCloud();
         if (ok) {
             if (ok.items.length > 0) ALL_ITEMS = ok.items;
@@ -1894,6 +1931,7 @@
             showToast('💕 Loaded from cloud!', 2000);
         } else {
             setSyncStatus('offline', '⚠️ offline');
+            console.warn('☁️ Cloud unreachable at', c.url, '— running on local data.');
         }
         startAutoSync();
     }
@@ -2049,22 +2087,22 @@
         });
 
         document.addEventListener('visibilitychange', async () => {
-            if (!document.hidden && supabaseClient) {
-                const before = JSON.stringify({ h: history, d: ALL_ITEMS, p: picked });
-                const ok = await pullAllFromCloud();
-                if (ok) {
-                    const after = JSON.stringify({ h: ok.history, d: ok.items, p: ok.picked });
-                    if (before !== after) {
-                        if (ok.items.length > 0) ALL_ITEMS = ok.items;
-                        history = ok.history;
-                        picked = ok.picked;
-                        currentlyDisplayedEntry = history.length > 0 ? history[history.length - 1] : null;
-                        if (currentlyDisplayedEntry) updatePopup(currentlyDisplayedEntry);
-                        updateUI();
-                        showToast('🔄 Refreshed from cloud', 2000);
-                    }
-                }
-            }
+            if (document.hidden) return;
+            if (!cloudCfg().ok) return;
+            // pullAllFromCloud() waits for the client, so returning to the tab after
+            // the CDN script finally loaded still syncs correctly.
+            const ok = await pullAllFromCloud();
+            if (!ok) return;
+            const before = JSON.stringify({ h: history, d: ALL_ITEMS, p: picked });
+            const after = JSON.stringify({ h: ok.history, d: ok.items, p: ok.picked });
+            if (before === after) return;
+            if (ok.items.length > 0) ALL_ITEMS = ok.items;
+            history = ok.history;
+            picked = ok.picked;
+            currentlyDisplayedEntry = history.length > 0 ? history[history.length - 1] : null;
+            if (currentlyDisplayedEntry) updatePopup(currentlyDisplayedEntry);
+            updateUI();
+            showToast('🔄 Refreshed from cloud', 2000);
         });
 
         setInterval(saveLocalBackup, 5000);
