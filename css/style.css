@@ -696,6 +696,53 @@ body {
 
 html, body { max-width: 100%; overflow-x: hidden; }
 
+/* ============================================================
+   HISTORY SECTION — full styles (previously missing, which made
+   history rows render as raw inline text "here and there")
+   ============================================================ */
+.history-section {
+    margin-top: 1.6rem;
+    padding: 1rem 1.1rem 1.2rem;
+    background: var(--surface-soft);
+    border: 1px solid var(--border-soft);
+    border-radius: var(--r-lg);
+    text-align: left;
+}
+.history-section h3 { font-size: 1.05rem; font-weight: 800; color: var(--navy-800); margin-bottom: 0.8rem; }
+.history-hint { font-size: 0.72rem; font-weight: 600; color: var(--ink-faint); }
+.history-list { display: flex; flex-direction: column; gap: 0.6rem; max-height: 340px; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 0.2rem; }
+.history-empty { text-align: center; font-size: 0.85rem; color: var(--ink-soft); font-style: italic; padding: 1rem 0.5rem; }
+
+.history-item {
+    display: flex; align-items: center; gap: 0.8rem; flex-wrap: wrap;
+    background: rgba(255,255,255,.92); border: 1.5px solid rgba(180,205,230,.55);
+    border-radius: var(--r-md); padding: 0.65rem 0.85rem; box-shadow: var(--shadow-sm);
+    transition: all 0.2s ease;
+}
+.history-item:hover { border-color: #7a9cbf; box-shadow: var(--shadow-md); }
+.history-item .cloth-photo { width: 48px; height: 48px; border-radius: 12px; object-fit: cover; border: 2px solid #c8d8ea; background: #eef4fc; flex-shrink: 0; display: block; }
+.dish-name { font-weight: 800; color: var(--ink); font-size: 0.95rem; }
+.dish-category { font-size: 0.72rem; font-weight: 700; color: #062515; background: #74c69d; padding: 0.15rem 0.7rem; border-radius: var(--r-pill); white-space: nowrap; }
+.inner-tag { font-size: 0.72rem; font-weight: 700; color: var(--navy-800); background: rgba(150,190,225,.25); padding: 0.15rem 0.7rem; border-radius: var(--r-pill); white-space: nowrap; }
+.inner-tag.no-inner { color: #7f8c8d; background: #ecf0f1; }
+.dish-date { font-size: 0.75rem; color: var(--ink-soft); font-weight: 600; white-space: nowrap; }
+.dish-date-tag { font-size: 0.72rem; font-weight: 800; color: #241054; background: #b197fc; padding: 0.15rem 0.7rem; border-radius: var(--r-pill); white-space: nowrap; }
+.cook-tags { display: flex; gap: 0.4rem; flex-wrap: wrap; margin-left: auto; }
+.cook-tag { font-size: 0.72rem; font-weight: 700; padding: 0.25rem 0.75rem; border-radius: var(--r-pill); cursor: pointer; border: 1.5px solid transparent; user-select: none; transition: all 0.18s ease; font-family: inherit; }
+.cook-tag.inactive { background: #edf2f7; color: #90a8c0; }
+.cook-tag.active-deep { background: #dbeafe; color: #1d4ed8; border-color: #60a5fa; }
+.cook-tag.active-honey { background: #fce7f3; color: #be185d; border-color: #f472b6; }
+.history-delete-btn { background: rgba(192,57,43,.1); color: var(--red-600); border: none; border-radius: 50%; width: 32px; height: 32px; font-size: 0.95rem; cursor: pointer; flex-shrink: 0; display: flex; align-items: center; justify-content: center; transition: all 0.18s ease; font-family: inherit; }
+.history-delete-btn:hover { background: var(--red-600); color: white; transform: scale(1.1) rotate(8deg); }
+
+/* ---------- FOOTER META ---------- */
+.footer-meta { display: flex; justify-content: center; align-items: center; gap: 1.2rem; flex-wrap: wrap; margin-top: 1.4rem; font-size: 0.78rem; font-weight: 700; color: var(--ink-soft); }
+.footer-meta span { background: rgba(150,190,225,.18); padding: 0.3rem 0.9rem; border-radius: var(--r-pill); white-space: nowrap; }
+
+/* ---------- TOAST (bottom-center pill, JS toggles .show) ---------- */
+.toast-message { position: fixed; bottom: calc(1.4rem + env(safe-area-inset-bottom)); left: 50%; transform: translate(-50%, 20px); background: var(--navy-800); color: #eaf3fc; padding: 0.7rem 1.4rem; border-radius: var(--r-pill); font-size: 0.9rem; font-weight: 700; box-shadow: var(--shadow-lg); z-index: 5000; opacity: 0; pointer-events: none; transition: opacity 0.25s ease, transform 0.25s ease; max-width: min(92vw, 480px); text-align: center; }
+.toast-message.show { opacity: 1; transform: translate(-50%, 0); }
+
 @media (max-width: 600px) {
     body { padding: 0.5rem; align-items: flex-start; }
     .card { padding: 1.2rem 0.85rem 1.4rem; border-radius: 28px; }
@@ -758,46 +805,18 @@ body {
     -webkit-tap-highlight-color: transparent;
 }
 
-/* center the card on wide desktop windows only.
-   Use flex-start (NOT center) so tall content stays reachable —
-   with align-items:center, overflowing top content is unreachable and
-   the page appears "not scrolling". */
-@media (min-width: 1024px) {
-    body {
-        display: flex;
-        justify-content: center;
-        align-items: flex-start;
-    }
-}
-
-/* The app header is sticky — it only works in normal document flow.
-   It must not become a flex item of the centered body layout. */
-.app-header,
-#appLoader,
-.toast-container,
-.modal-overlay,
-.email-options-modal,
-.wa-modal {
-    flex: none;
-}
-@media (min-width: 1024px) {
-    .app-header,
-    #appLoader,
-    .toast-container,
-    .modal-overlay,
-    .email-options-modal,
-    .wa-modal {
-        /* fixed/sticky elements are out of flow anyway; this keeps
-           any non-fixed wrappers from being squeezed by flexbox */
-        width: 100%;
-    }
-}
+/* DESKTOP LAYOUT FIX:
+   body must stay block-level on ALL screen sizes. When body was made a
+   flex container at ≥1024px, <header>, <main> and every modal became
+   horizontal flex items — that pushed the header to the side and
+   scattered everything "here and there". Centering is done by .card's
+   own `margin: auto` instead. */
 
 .card {
-    margin: 0 auto;
-    padding-top: calc(2.5rem + env(safe-area-inset-top));
-    padding-left: max(2rem, env(safe-area-inset-left));
-    padding-right: max(2rem, env(safe-area-inset-right));
+    margin: 1.6rem auto 2rem;
+    padding-top: calc(1.8rem + env(safe-area-inset-top));
+    padding-left: max(1.8rem, env(safe-area-inset-left));
+    padding-right: max(1.8rem, env(safe-area-inset-right));
     padding-bottom: calc(2.8rem + env(safe-area-inset-bottom));
 }
 
