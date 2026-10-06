@@ -907,8 +907,12 @@ body {
     100% { transform: translateY(-112vh) rotate(10deg) scale(1.15); opacity: 0; }
 }
 /* keep content above the hearts layer */
-.app-header, .card, .toast-message, .modal-overlay, .wa-modal, .email-options-modal, .app-loader { position: relative; }
-.app-header { position: sticky; }
+.app-header, .card, .toast-message { position: relative; z-index: 1; }
+/* overlays must sit ABOVE the sticky header/card (they are fixed & were being painted
+   below the header because of stacking contexts — this makes them reliably top-most) */
+.modal-overlay, .email-options-modal, .wa-modal { z-index: 3000 !important; }
+.app-loader { z-index: 9999; }
+.app-header { position: sticky; z-index: 20; }
 .card { z-index: 1; }
 
 @media (prefers-reduced-motion: reduce) {

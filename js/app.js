@@ -65,8 +65,37 @@
     }
     // config.js + app.js are both deferred and run right before the async CDN script
     // finishes, so we wait for __supabaseReady instead of calling this immediately.
+    // The Supabase CDN script loads with "async". If it ever fails to arrive
+    // (blocked CDN, offline at startup), inject a fallback copy ourselves so
+    // cloud sync can still come alive later instead of staying dead forever.
+    function ensureSupabaseScript() {
+        if (window.supabase || !window.__supabaseReady) return;
+        const src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
+        const existing = document.querySelector(`script[src^="${src}"]`);
+        if (!existing) {
+            const s = document.createElement('script');
+            s.src = src;
+            s.async = true;
+            s.onload = () => window.__onSupabaseLoaded && window.__onSupabaseLoaded();
+            s.onerror = () => console.warn('Supabase CDN unavailable — cloud sync offline.');
+            document.head.appendChild(s);
+        } else {
+            // Script tag exists but never fired onload/onerror yet — re-check once
+            // after the window load event before declaring it failed.
+            window.addEventListener('load', () => setTimeout(() => {
+                if (!window.supabase) {
+                    try { existing.remove(); } catch (e) {}
+                    ensureSupabaseScript();
+                }
+            }, 1500));
+        }
+    }
+
     if (window.__supabaseReady) {
-        window.__supabaseReady.then(tryCreateSupabaseClient).catch(() => {});
+        window.__supabaseReady
+            .then(tryCreateSupabaseClient)
+            .catch(() => {})
+            .finally(() => setTimeout(ensureSupabaseScript, 4000));
     } else {
         tryCreateSupabaseClient();
     }
@@ -92,7 +121,12 @@
         return tryCreateSupabaseClient();
     }
 
-    const PASSWORD = "Deepnectar@1612@";
+    // Delete password: prefer js/config.js (window.OUTFIT_CONFIG.DELETE_PASSWORD),
+    // fall back to the built-in default so the app never stops working.
+    function getDeletePassword() {
+        const cfg = window.OUTFIT_CONFIG || {};
+        return (cfg.DELETE_PASSWORD && String(cfg.DELETE_PASSWORD).trim()) || "Deepnectar@1612@";
+    }
     let deleteMode = false;
 
     let ALL_ITEMS = [];
@@ -451,43 +485,48 @@
     }
 
     async function doPushAll(client) {
-            const sb = client || supabaseClient;
-            await sb.from(TABLE_ITEMS).delete().neq('id', 0);
-            if (ALL_ITEMS.length > 0) {
-                const rows = ALL_ITEMS.map(it => ({
-                    name: it.name,
-                    category: it.category || '',
-                    folder: it.folder,
-                    drive_link: it.link || ''
-                }));
-                const { error } = await sb.from(TABLE_ITEMS).insert(rows);
-                if (error) console.warn('items insert warn:', error);
+        const sb = client || supabaseClient;
+
+        // Helper: replace a table's contents with `rows`.
+        // The delete MUST be checked — previously an auth/RLS/network failure was
+        // silently ignored, and the following insert then duplicated every row.
+        async function replaceTable(table, rows) {
+            const del = await sb.from(table).delete().neq('id', 0);
+            if (del.error) throw new Error(`cloud: could not clear ${table}: ${del.error.message}`);
+            if (rows.length === 0) return;
+            // Insert in chunks so large lists don't hit request-size limits.
+            const CHUNK = 200;
+            for (let i = 0; i < rows.length; i += CHUNK) {
+                const ins = await sb.from(table).insert(rows.slice(i, i + CHUNK));
+                if (ins.error) throw new Error(`cloud: could not save ${table}: ${ins.error.message}`);
             }
-            await sb.from(TABLE_HISTORY).delete().neq('id', 0);
-            if (history.length > 0) {
-                const rows = history.map(h => ({
-                    cloth_name: h.cloth || '',
-                    cloth_category: h.clothCategory || '',
-                    cloth_link: h.clothLink || '',
-                    inner_name: h.inner || '',
-                    inner_link: h.innerLink || '',
-                    no_inner: !!h.noInner,
-                    display_date: h.displayDate || '',
-                    date_tag: h.dateTag || '',
-                    wearer: h.wearer || ''
-                }));
-                const { error } = await sb.from(TABLE_HISTORY).insert(rows);
-                if (error) console.warn('history insert warn:', error);
-            }
-            await sb.from(TABLE_PICKED).delete().neq('id', 0);
-            if (picked.length > 0) {
-                const rows = picked.map(k => {
-                    const [folder, name] = k.split('::');
-                    return { folder, item_name: name };
-                });
-                const { error } = await sb.from(TABLE_PICKED).insert(rows);
-                if (error) console.warn('picked insert warn:', error);
-            }
+        }
+
+        const itemRows = ALL_ITEMS.map(it => ({
+            name: it.name,
+            category: it.category || '',
+            folder: it.folder,
+            drive_link: it.link || ''
+        }));
+        const histRows = history.map(h => ({
+            cloth_name: h.cloth || '',
+            cloth_category: h.clothCategory || '',
+            cloth_link: h.clothLink || '',
+            inner_name: h.inner || '',
+            inner_link: h.innerLink || '',
+            no_inner: !!h.noInner,
+            display_date: h.displayDate || '',
+            date_tag: h.dateTag || '',
+            wearer: h.wearer || ''
+        }));
+        const pickedRows = picked.map(k => {
+            const sep = k.indexOf('::');
+            return { folder: k.slice(0, sep), item_name: k.slice(sep + 2) };
+        });
+
+        await replaceTable(TABLE_ITEMS, itemRows);
+        await replaceTable(TABLE_HISTORY, histRows);
+        await replaceTable(TABLE_PICKED, pickedRows);
     }
 
     async function pullAllFromCloud() {
@@ -542,7 +581,10 @@
             if (!silent) showToast('⚠️ Sync failed', 2500);
             return;
         }
-        ALL_ITEMS = pulled.items.length > 0 ? pulled.items : TEST_ITEMS.slice();
+        // Cloud is the source of truth: an empty cloud table means "deleted on
+        // another device", so honor it (previously a full clear fell back to the
+        // built-in test items, making deleted items reappear).
+        ALL_ITEMS = pulled.items;
         history = pulled.history;
         picked = pulled.picked;
         currentlyDisplayedEntry = history.length > 0 ? history[history.length - 1] : null;
@@ -1486,7 +1528,7 @@
         historyDeleteError.classList.remove('show');
     }
     async function confirmHistoryDelete() {
-        if (historyDeletePassword.value === PASSWORD) {
+        if (historyDeletePassword.value === getDeletePassword()) {
             if (historyEntryToDelete !== null && historyEntryToDelete >= 0 && historyEntryToDelete < history.length) {
                 const e = history[historyEntryToDelete];
                 history.splice(historyEntryToDelete, 1);
@@ -1533,7 +1575,7 @@
     }
     function closeModal() { modal.classList.remove('active'); passwordError.classList.remove('show'); }
     function verifyPassword() {
-        if (passwordInput.value === PASSWORD) {
+        if (passwordInput.value === getDeletePassword()) {
             deleteMode = true;
             closeModal();
             showToast('🔓 Delete mode ON', 3000);
@@ -1916,7 +1958,7 @@
         // supabase.js load no longer means "cloud disabled".
         const ok = await pullAllFromCloud();
         if (ok) {
-            if (ok.items.length > 0) ALL_ITEMS = ok.items;
+            ALL_ITEMS = ok.items;   // cloud is the source of truth (even when empty)
             history = ok.history;
             picked = ok.picked;
             currentlyDisplayedEntry = history.length > 0 ? history[history.length - 1] : null;
@@ -2101,7 +2143,7 @@
             const before = JSON.stringify({ h: history, d: ALL_ITEMS, p: picked });
             const after = JSON.stringify({ h: ok.history, d: ok.items, p: ok.picked });
             if (before === after) return;
-            if (ok.items.length > 0) ALL_ITEMS = ok.items;
+            ALL_ITEMS = ok.items;   // cloud is the source of truth (even when empty)
             history = ok.history;
             picked = ok.picked;
             currentlyDisplayedEntry = history.length > 0 ? history[history.length - 1] : null;
