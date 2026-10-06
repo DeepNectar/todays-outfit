@@ -3,28 +3,39 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="description" content="Outfit Picker — cloud synced outfit chooser PWA">
-<meta name="theme-color" content="#2d6a4f">
+<meta name="description" content="Outfit Picker — a romantic, cloud synced outfit chooser PWA for two">
+<meta name="theme-color" content="#8e3a5c">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Outfit Picker">
-<title>👕 Outfit Picker · Cloud Synced</title>
+<title>💞 Outfit Picker · Made with Love</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/svg+xml" href="icons/icon.svg">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <!-- Fonts: preconnect + display=swap so text renders instantly even on slow phones -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
-<link rel="stylesheet" href="css/style.css?v=4">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;0,800;1,600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
+<link rel="stylesheet" href="css/style.css?v=5">
 </head>
 <body>
+
+<!-- Romantic floating-hearts backdrop (pure CSS, decorative) -->
+<div class="hearts-bg" aria-hidden="true">
+    <span style="--d:0s;--x:8vw;--s:1.1">💗</span>
+    <span style="--d:4s;--x:22vw;--s:0.7">💞</span>
+    <span style="--d:8s;--x:38vw;--s:1.3">🤍</span>
+    <span style="--d:2.5s;--x:56vw;--s:0.8">💗</span>
+    <span style="--d:6.5s;--x:71vw;--s:1.2">💞</span>
+    <span style="--d:1s;--x:84vw;--s:0.9">🤍</span>
+    <span style="--d:5s;--x:94vw;--s:1.1">💗</span>
+</div>
 
 <!-- One-time app intro (auto-fades) -->
 <div class="app-loader" id="appLoader" aria-hidden="true">
     <div class="app-loader-inner">
-        <div class="app-loader-icon">👕</div>
+        <div class="app-loader-icon">💞</div>
         <div class="app-loader-text">Outfit Picker</div>
         <div class="app-loader-bar"><span></span></div>
     </div>
@@ -32,10 +43,10 @@
 
 <header class="app-header">
     <div class="brand">
-        <div class="brand-logo" aria-hidden="true">👕</div>
+        <div class="brand-logo" aria-hidden="true">💞</div>
         <div class="brand-text">
-            <h1>Outfit&nbsp;Picker</h1>
-            <p>Cloud synced · Google Drive photos · phone &amp; laptop</p>
+            <h1>Outfit&nbsp;Picker</h1><span class="brand-heart" aria-hidden="true">♥</span>
+            <p>Made with love · Cloud synced to your Google Drive</p>
         </div>
     </div>
     <div class="header-chips">
@@ -81,7 +92,7 @@
             <div class="select-all-container" id="selectAllContainer" style="display:none;">
                 <input type="checkbox" id="selectAllCheckbox">
                 <label for="selectAllCheckbox">Select All</label>
-                <span id="selectedCount" style="font-size:0.8rem; color:#475f7a;">(0 selected)</span>
+                <span id="selectedCount" style="font-size:0.8rem; color:#7a4a5e;">(0 selected)</span>
             </div>
             <button class="bulk-delete-btn" id="bulkDeleteBtn">🗑️ Delete Selected</button>
         </div>
@@ -89,7 +100,7 @@
     </div>
 
     <section class="popup-area">
-        <div class="popup-title"><span aria-hidden="true">✨</span> Today's Pick</div>
+        <div class="popup-title"><span aria-hidden="true">✨</span> Today's Pick <em>for you</em></div>
         <div class="popup-display" id="popupDisplay">
             <span class="popup-empty">click refresh to pick an outfit</span>
         </div>
@@ -128,7 +139,7 @@
         <h3>📂 Select Category & Date</h3>
         <p>Choose a category and when you want to wear this outfit</p>
         <select id="categoryModalSelect"><option value="__all__">📋 All Categories</option></select>
-        <div style="font-size:0.85rem; color:#475f7a; margin-bottom:0.8rem;" id="categoryModalCount"></div>
+        <div style="font-size:0.85rem; color:#7a4a5e; margin-bottom:0.8rem;" id="categoryModalCount"></div>
 
         <div class="date-option" id="dateOptionGroup">
             <label class="selected" id="todayLabel"><input type="radio" name="outfitDate" value="today" checked> 📅 Today</label>
@@ -145,7 +156,7 @@
 
         <div class="modal-buttons">
             <button class="modal-cancel" id="categoryModalCancel">Cancel</button>
-            <button class="modal-confirm" id="categoryModalConfirm" style="background:#2d6a4f;">🎲 Pick Cloth</button>
+            <button class="modal-confirm" id="categoryModalConfirm" style="background:linear-gradient(135deg,#c2185b,#6f2141);">🎲 Pick Cloth</button>
         </div>
     </div>
 </div>
@@ -175,7 +186,7 @@
         <div class="inner-grid" id="innerGrid"></div>
         <div class="modal-buttons">
             <button class="modal-cancel" id="innerModalCancel">Cancel</button>
-            <button class="modal-confirm" id="innerModalConfirm" style="background:#2d6a4f;">✅ Confirm Outfit</button>
+            <button class="modal-confirm" id="innerModalConfirm" style="background:linear-gradient(135deg,#c2185b,#6f2141);">✅ Confirm Outfit</button>
         </div>
     </div>
 </div>
@@ -186,8 +197,8 @@
         <h3>🎉 Final Outfit</h3>
         <div id="finalOutfitPreview" style="display:flex;justify-content:center;gap:1rem;flex-wrap:wrap;margin-bottom:1rem;"></div>
         <div class="modal-buttons">
-            <button class="modal-cancel" id="finalCancel" style="background:#dce8f5;color:#1b2a3d;">Back</button>
-            <button class="modal-confirm" id="finalConfirm" style="background:#2d6a4f;">✅ Save to History</button>
+            <button class="modal-cancel" id="finalCancel" style="background:#fce4ec;color:#54192f;">Back</button>
+            <button class="modal-confirm" id="finalConfirm" style="background:linear-gradient(135deg,#c2185b,#6f2141);">✅ Save to History</button>
         </div>
     </div>
 </div>
@@ -238,7 +249,7 @@
         <h3>🗑️ Bulk Delete Items</h3>
         <p>Are you sure you want to delete the following items?</p>
         <div class="bulk-delete-count" id="bulkDeleteCount">0</div>
-        <p style="font-size:0.85rem; color:#475f7a;" id="bulkDeleteList"></p>
+        <p style="font-size:0.85rem; color:#7a4a5e;" id="bulkDeleteList"></p>
         <div class="modal-buttons">
             <button class="modal-cancel" id="bulkDeleteCancel">Cancel</button>
             <button class="modal-confirm" id="bulkDeleteConfirm">🗑️ Delete All</button>
@@ -255,7 +266,7 @@
         <input type="text" id="manualCategory" placeholder="📂 Category (optional)" maxlength="60" autocomplete="off">
         <input type="text" id="manualInnerName" placeholder="🩲 Inner name (optional — blank = No Inner)" maxlength="80" autocomplete="off">
 
-        <div style="text-align:left; margin-bottom:0.4rem; font-size:0.85rem; color:#475f7a; font-weight:500; padding-left:0.5rem;">📅 Date:</div>
+        <div style="text-align:left; margin-bottom:0.4rem; font-size:0.85rem; color:#7a4a5e; font-weight:500; padding-left:0.5rem;">📅 Date:</div>
         <select id="manualDateSelect">
             <option value="today" selected>📅 Today</option>
             <option value="tomorrow">📅 Tomorrow</option>
@@ -279,7 +290,7 @@
         <div class="error-text" id="manualAddError">❌ Please enter a cloth name</div>
         <div class="modal-buttons">
             <button class="modal-cancel" id="manualAddCancel" type="button">Cancel</button>
-            <button class="modal-confirm" id="manualAddConfirm" type="button" style="background:#2d6a4f;">✍️ Add to History</button>
+            <button class="modal-confirm" id="manualAddConfirm" type="button" style="background:linear-gradient(135deg,#c2185b,#6f2141);">✍️ Add to History</button>
         </div>
     </div>
 </div>

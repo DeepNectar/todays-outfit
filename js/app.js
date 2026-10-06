@@ -1007,11 +1007,11 @@
         clothBox.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:0.4rem;';
         const cImg = document.createElement('img');
         cImg.src = driveThumbUrl(pendingCloth.cloth.link, 400);
-        cImg.style.cssText = 'width:180px;height:220px;object-fit:cover;border-radius:16px;border:3px solid #22384f;background:#eef4fc;';
+        cImg.style.cssText = 'width:180px;height:220px;object-fit:cover;border-radius:16px;border:3px solid #a63a63;background:#fff0f5;';
         cImg.onerror = () => { cImg.style.background = '#ffe0e0'; };
         clothBox.appendChild(cImg);
         const cTxt = document.createElement('div');
-        cTxt.style.cssText = 'font-weight:600;color:#22384f;font-size:0.9rem;';
+        cTxt.style.cssText = 'font-weight:600;color:#6f2141;font-size:0.9rem;';
         cTxt.textContent = `👔 ${pendingCloth.cloth.name}`;
         clothBox.appendChild(cTxt);
         finalOutfitPreview.appendChild(clothBox);
@@ -1030,11 +1030,11 @@
         } else {
             const iImg = document.createElement('img');
             iImg.src = driveThumbUrl(pendingInner.item.link, 400);
-            iImg.style.cssText = 'width:180px;height:220px;object-fit:cover;border-radius:16px;border:3px solid #2d6a4f;background:#eef4fc;';
+            iImg.style.cssText = 'width:180px;height:220px;object-fit:cover;border-radius:16px;border:3px solid #c2185b;background:#fff0f5;';
             iImg.onerror = () => { iImg.style.background = '#ffe0e0'; };
             innerBox.appendChild(iImg);
             const iTxt = document.createElement('div');
-            iTxt.style.cssText = 'font-weight:600;color:#2d6a4f;font-size:0.9rem;';
+            iTxt.style.cssText = 'font-weight:600;color:#a63a63;font-size:0.9rem;';
             iTxt.textContent = `🩲 ${pendingInner.item.name}`;
             innerBox.appendChild(iTxt);
         }
