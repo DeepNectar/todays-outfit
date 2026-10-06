@@ -1,6 +1,6 @@
 /* Outfit Picker service worker — makes the app installable & fast.
  * Strategy: app shell = cache-first; Supabase/Drive data = network-first (always fresh). */
-const CACHE_VERSION = 'outfit-picker-v5';
+const CACHE_VERSION = 'outfit-picker-v6';
 const APP_SHELL = [
     '/',
     '/index.html',

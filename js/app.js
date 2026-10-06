@@ -125,9 +125,23 @@
     // fall back to the built-in default so the app never stops working.
     function getDeletePassword() {
         const cfg = window.OUTFIT_CONFIG || {};
-        return (cfg.DELETE_PASSWORD && String(cfg.DELETE_PASSWORD).trim()) || "Deepnectar@1612@";
+        return (cfg.DELETE_PASSWORD && String(cfg.DELETE_PASSWORD).trim()) || "DeepH@2805";
     }
     let deleteMode = false;
+
+    // 🔒 Session unlock — once the correct password is entered anywhere in the app,
+    // destructive actions (per-item delete, bulk delete, clear history, history-entry
+    // delete) are allowed for this session without re-typing it every single time.
+    // It resets automatically on page reload / app restart.
+    let unlockedThisSession = false;
+    function requireUnlock(successMsg) {
+        if (unlockedThisSession) {
+            if (successMsg) showToast(successMsg, 2000);
+            return true;
+        }
+        openGenericUnlockModal(successMsg || '');
+        return false;
+    }
 
     let ALL_ITEMS = [];
     let history = [];
@@ -237,12 +251,16 @@
     const clearHistoryModal = document.getElementById('clearHistoryModal');
     const clearHistoryConfirm = document.getElementById('clearHistoryConfirm');
     const clearHistoryCancel = document.getElementById('clearHistoryCancel');
+    const clearHistoryPassword = document.getElementById('clearHistoryPassword');
+    const clearHistoryError = document.getElementById('clearHistoryError');
 
     const bulkDeleteModal = document.getElementById('bulkDeleteModal');
     const bulkDeleteConfirm = document.getElementById('bulkDeleteConfirm');
     const bulkDeleteCancel = document.getElementById('bulkDeleteCancel');
     const bulkDeleteCount = document.getElementById('bulkDeleteCount');
     const bulkDeleteList = document.getElementById('bulkDeleteList');
+    const bulkDeletePassword = document.getElementById('bulkDeletePassword');
+    const bulkDeleteError = document.getElementById('bulkDeleteError');
 
     const emailOptionsModal = document.getElementById('emailOptionsModal');
     const emailOptionsClose = document.getElementById('emailOptionsClose');
@@ -633,10 +651,16 @@
             deleteIndicator.textContent = deleteMode ? '🔓 unlocked' : '🔒 locked';
         }
         if (deleteModeBtn) {
-            deleteModeBtn.innerHTML = deleteMode ? '<i>🔓</i> delete mode (active)' : '<i>🔒</i> delete mode';
+            deleteModeBtn.innerHTML = deleteMode
+                ? '<i>🔓</i> delete mode (active)'
+                : '<i>🔒</i> delete mode <span class="lock-badge">🔒 pass</span>';
             deleteModeBtn.style.background = deleteMode
                 ? 'linear-gradient(135deg, #27ae60, #1a6e3b)'
                 : 'linear-gradient(135deg, #c0392b, #e74c3c)';
+        }
+        // reflect session-unlock state on the Clear History button too
+        if (clearHistoryBtn) {
+            clearHistoryBtn.querySelector('.lock-badge').textContent = unlockedThisSession ? '🔓 open' : '🔒 pass';
         }
         if (selectAllContainer) selectAllContainer.style.display = deleteMode ? 'flex' : 'none';
         if (!deleteMode) selectedForDelete.clear();
@@ -940,6 +964,8 @@
 
     async function deleteItem(name) {
         if (!deleteMode) { showToast('🔒 Locked.', 2000); return; }
+        // 🔒 The × delete button asks for the password on every single delete
+        if (!requireUnlock()) return;
         if (isPicked(currentFolder, name)) { showToast('⚠️ Already picked.', 2000); return; }
         const i = ALL_ITEMS.findIndex(it => it.folder === currentFolder && it.name === name);
         if (i !== -1) {
@@ -1315,16 +1341,35 @@
     }
     function handleClearHistory() {
         if (history.length === 0) { showToast('📭 No history to clear!', 2000); return; }
+        // 🔒 "Clear History" is password protected — the modal itself demands
+        // the delete password before the destructive confirm button works.
+        clearHistoryPassword.value = '';
+        clearHistoryError.classList.remove('show');
         clearHistoryModal.classList.add('active');
+        clearHistoryPassword.focus();
+    }
+    function closeClearHistoryModal() {
+        clearHistoryModal.classList.remove('active');
+        clearHistoryPassword.value = '';
+        clearHistoryError.classList.remove('show');
     }
     async function confirmClearHistory() {
+        // Password check right here, inside the confirmation dialog
+        if (clearHistoryPassword.value !== getDeletePassword()) {
+            clearHistoryError.classList.add('show');
+            clearHistoryPassword.value = '';
+            clearHistoryPassword.focus();
+            setTimeout(() => clearHistoryError.classList.remove('show'), 3000);
+            return;
+        }
+        unlockedThisSession = true; // 🔓 one unlock covers all delete actions this session
         history = [];
         picked = [];
         selectedForDelete.clear();
         currentlyDisplayedEntry = null;
         updatePopup(null);
         updateUI();
-        clearHistoryModal.classList.remove('active');
+        closeClearHistoryModal();
         showToast('🗑️ All history cleared! (also from cloud)', 2500);
         await pushAllToCloud();
     }
@@ -1515,11 +1560,33 @@
     // ============================================================
     function openHistoryDeleteModal(idx) {
         if (idx < 0 || idx >= history.length) return;
+        // 🔒 Every history-entry delete demands the password
         historyEntryToDelete = idx;
         historyDeletePassword.value = '';
         historyDeleteError.classList.remove('show');
         historyDeleteModal.classList.add('active');
         historyDeletePassword.focus();
+    }
+    async function performHistoryDelete(idx) {
+        if (idx === null || idx < 0 || idx >= history.length) return;
+        const e = history[idx];
+        history.splice(idx, 1);
+        const ck = keyFor('cloth', e.cloth);
+        const ci = picked.indexOf(ck);
+        if (ci !== -1) picked.splice(ci, 1);
+        if (!e.noInner && e.inner) {
+            const ik = keyFor('inner', e.inner);
+            const ii = picked.indexOf(ik);
+            if (ii !== -1) picked.splice(ii, 1);
+        }
+        if (currentlyDisplayedEntry === e) {
+            currentlyDisplayedEntry = null;
+            updatePopup(null);
+        }
+        closeHistoryDeleteModal();
+        updateUI();
+        showToast(`🗑️ Deleted: ${e.cloth}`, 2500);
+        await pushAllToCloud();
     }
     function closeHistoryDeleteModal() {
         historyDeleteModal.classList.remove('active');
@@ -1529,26 +1596,8 @@
     }
     async function confirmHistoryDelete() {
         if (historyDeletePassword.value === getDeletePassword()) {
-            if (historyEntryToDelete !== null && historyEntryToDelete >= 0 && historyEntryToDelete < history.length) {
-                const e = history[historyEntryToDelete];
-                history.splice(historyEntryToDelete, 1);
-                const ck = keyFor('cloth', e.cloth);
-                const ci = picked.indexOf(ck);
-                if (ci !== -1) picked.splice(ci, 1);
-                if (!e.noInner && e.inner) {
-                    const ik = keyFor('inner', e.inner);
-                    const ii = picked.indexOf(ik);
-                    if (ii !== -1) picked.splice(ii, 1);
-                }
-                if (currentlyDisplayedEntry === e) {
-                    currentlyDisplayedEntry = null;
-                    updatePopup(null);
-                }
-                closeHistoryDeleteModal();
-                updateUI();
-                showToast(`🗑️ Deleted: ${e.cloth}`, 2500);
-                await pushAllToCloud();
-            }
+            unlockedThisSession = true; // 🔓 session unlocked — future deletes are one tap
+            await performHistoryDelete(historyEntryToDelete);
         } else {
             historyDeleteError.classList.add('show');
             historyDeletePassword.value = '';
@@ -1560,6 +1609,7 @@
     // ============================================================
     // PASSWORD / BULK DELETE
     // ============================================================
+    let genericUnlockSuccessMsg = '';
     function openModal() {
         if (deleteMode) {
             deleteMode = false;
@@ -1568,6 +1618,27 @@
             showToast('🔒 Locked', 2000);
             return;
         }
+        // Already unlocked this session → toggle delete mode instantly (no re-typing)
+        if (unlockedThisSession) {
+            deleteMode = true;
+            updateUI();
+            showToast('🔓 Delete mode ON', 3000);
+            return;
+        }
+        genericUnlockSuccessMsg = '';
+        modal.querySelector('h3').textContent = '🔒 Delete Items';
+        modal.querySelector('p').textContent = 'Enter the password to enable item deletion';
+        modal.classList.add('active');
+        passwordInput.value = '';
+        passwordError.classList.remove('show');
+        passwordInput.focus();
+    }
+    // Shared unlock prompt used by every destructive action (clear history, × delete,
+    // bulk delete…). Same modal, same "DeepH@2805" password.
+    function openGenericUnlockModal(successMsg) {
+        genericUnlockSuccessMsg = successMsg || '';
+        modal.querySelector('h3').textContent = '🔒 Password Required';
+        modal.querySelector('p').textContent = 'Enter the password to perform this action';
         modal.classList.add('active');
         passwordInput.value = '';
         passwordError.classList.remove('show');
@@ -1576,10 +1647,21 @@
     function closeModal() { modal.classList.remove('active'); passwordError.classList.remove('show'); }
     function verifyPassword() {
         if (passwordInput.value === getDeletePassword()) {
-            deleteMode = true;
+            unlockedThisSession = true; // 🔓 one unlock protects all delete actions this session
+            const pendingAction = genericUnlockSuccessMsg;
+            genericUnlockSuccessMsg = '';
             closeModal();
-            showToast('🔓 Delete mode ON', 3000);
-            updateUI();
+            if (pendingAction) {
+                showToast(pendingAction, 2500);
+                updateUI();
+            } else if (!deleteMode) {
+                deleteMode = true;
+                showToast('🔓 Delete mode ON', 3000);
+                updateUI();
+            } else {
+                showToast('🔓 Unlocked', 2000);
+                updateUI();
+            }
         } else {
             passwordError.classList.add('show');
             passwordInput.value = '';
@@ -1592,11 +1674,29 @@
         const names = Array.from(selectedForDelete);
         bulkDeleteCount.textContent = `${names.length} item(s)`;
         bulkDeleteList.textContent = names.slice(0, 10).join(', ') + (names.length > 10 ? ` and ${names.length - 10} more...` : '');
+        // 🔒 Password is demanded inside this modal before the delete can be confirmed
+        bulkDeletePassword.value = '';
+        bulkDeleteError.classList.remove('show');
         bulkDeleteModal.classList.add('active');
+        bulkDeletePassword.focus();
+    }
+    function closeBulkDeleteModal() {
+        bulkDeleteModal.classList.remove('active');
+        bulkDeletePassword.value = '';
+        bulkDeleteError.classList.remove('show');
     }
     async function confirmBulkDelete() {
         const toDel = Array.from(selectedForDelete);
-        if (toDel.length === 0) { bulkDeleteModal.classList.remove('active'); return; }
+        if (toDel.length === 0) { closeBulkDeleteModal(); return; }
+        // 🔒 password gate for bulk delete
+        if (bulkDeletePassword.value !== getDeletePassword()) {
+            bulkDeleteError.classList.add('show');
+            bulkDeletePassword.value = '';
+            bulkDeletePassword.focus();
+            setTimeout(() => bulkDeleteError.classList.remove('show'), 3000);
+            return;
+        }
+        unlockedThisSession = true; // 🔓 one unlock covers all delete actions this session
         toDel.forEach(name => {
             const i = ALL_ITEMS.findIndex(it => it.folder === currentFolder && it.name === name);
             if (i !== -1) ALL_ITEMS.splice(i, 1);
@@ -1604,7 +1704,7 @@
             if (p !== -1) picked.splice(p, 1);
         });
         selectedForDelete.clear();
-        bulkDeleteModal.classList.remove('active');
+        closeBulkDeleteModal();
         updateUI();
         showToast(`🗑️ Deleted ${toDel.length} item(s)!`, 2500);
         await pushAllToCloud();
@@ -2068,8 +2168,12 @@
 
         if (bulkDeleteBtn) bulkDeleteBtn.addEventListener('click', showBulkDeleteModal);
         if (bulkDeleteConfirm) bulkDeleteConfirm.addEventListener('click', confirmBulkDelete);
-        if (bulkDeleteCancel) bulkDeleteCancel.addEventListener('click', () => bulkDeleteModal.classList.remove('active'));
-        if (bulkDeleteModal) bulkDeleteModal.addEventListener('click', (e) => { if (e.target === bulkDeleteModal) bulkDeleteModal.classList.remove('active'); });
+        if (bulkDeleteCancel) bulkDeleteCancel.addEventListener('click', closeBulkDeleteModal);
+        if (bulkDeleteModal) bulkDeleteModal.addEventListener('click', (e) => { if (e.target === bulkDeleteModal) closeBulkDeleteModal(); });
+        if (bulkDeletePassword) bulkDeletePassword.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') { e.preventDefault(); confirmBulkDelete(); }
+            if (e.key === 'Escape') closeBulkDeleteModal();
+        });
 
         if (selectAllCheckbox) selectAllCheckbox.addEventListener('change', selectAllItems);
         if (categorySelect) categorySelect.addEventListener('change', () => {
@@ -2086,8 +2190,12 @@
         if (exportExcelBtn) exportExcelBtn.addEventListener('click', handleExportExcel);
 
         if (clearHistoryConfirm) clearHistoryConfirm.addEventListener('click', confirmClearHistory);
-        if (clearHistoryCancel) clearHistoryCancel.addEventListener('click', () => clearHistoryModal.classList.remove('active'));
-        if (clearHistoryModal) clearHistoryModal.addEventListener('click', (e) => { if (e.target === clearHistoryModal) clearHistoryModal.classList.remove('active'); });
+        if (clearHistoryCancel) clearHistoryCancel.addEventListener('click', closeClearHistoryModal);
+        if (clearHistoryModal) clearHistoryModal.addEventListener('click', (e) => { if (e.target === clearHistoryModal) closeClearHistoryModal(); });
+        if (clearHistoryPassword) clearHistoryPassword.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') { e.preventDefault(); confirmClearHistory(); }
+            if (e.key === 'Escape') closeClearHistoryModal();
+        });
 
         if (emailOptionsClose) emailOptionsClose.addEventListener('click', closeEmailOptions);
         if (htmlOptionBtn) htmlOptionBtn.addEventListener('click', optionHTML);
@@ -2128,8 +2236,8 @@
                 else if (modal.classList.contains('active')) closeModal();
                 else if (emailOptionsModal.classList.contains('active')) closeEmailOptions();
                 else if (waModal.classList.contains('active')) closeWhatsAppModal();
-                else if (clearHistoryModal.classList.contains('active')) clearHistoryModal.classList.remove('active');
-                else if (bulkDeleteModal.classList.contains('active')) bulkDeleteModal.classList.remove('active');
+                else if (clearHistoryModal.classList.contains('active')) closeClearHistoryModal();
+                else if (bulkDeleteModal.classList.contains('active')) closeBulkDeleteModal();
             }
         });
 

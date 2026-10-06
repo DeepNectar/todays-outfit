@@ -17,7 +17,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;0,800;1,600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
-<link rel="stylesheet" href="css/style.css?v=5">
+<link rel="stylesheet" href="css/style.css?v=6">
 </head>
 <body>
 
@@ -107,12 +107,12 @@
     </section>
 
     <div class="btn-group">
-        <button class="btn btn-primary" id="refreshBtn"><i>⟳</i> refresh</button>
-        <button class="btn btn-email" id="emailBtn"><i>✉</i> email</button>
+        <button class="btn btn-primary" id="refreshBtn"><i>⟳</i> refresh outfit</button>
+        <button class="btn btn-email" id="emailBtn"><i>✉</i> email log</button>
         <button class="btn btn-whatsapp" id="whatsappBtn"><i>💬</i> whatsapp</button>
-        <button class="btn btn-outline" id="resetBtn"><i>↺</i> reset all</button>
-        <button class="btn btn-clear" id="clearHistoryBtn"><i>🗑️</i> clear history</button>
-        <button class="btn btn-danger" id="deleteModeBtn"><i>🔒</i> delete mode</button>
+        <button class="btn btn-outline" id="resetBtn"><i>↺</i> reset picks</button>
+        <button class="btn btn-clear" id="clearHistoryBtn"><i>🗑️</i> clear history <span class="lock-badge">🔒 pass</span></button>
+        <button class="btn btn-danger" id="deleteModeBtn"><i>🔒</i> delete mode <span class="lock-badge">🔒 pass</span></button>
         <button class="btn btn-outline" id="manualAddBtn"><i>✍️</i> add manually</button>
         <button class="btn btn-sync" id="syncBtn"><i>🔄</i> force sync</button>
     </div>
@@ -231,14 +231,16 @@
     </div>
 </div>
 
-<!-- Clear History Modal -->
+<!-- Clear History Modal (password protected) -->
 <div class="modal-overlay" id="clearHistoryModal">
     <div class="modal">
-        <h3>🗑️ Clear All History</h3>
-        <p>This will delete all outfit history and reset all items to available.<br><strong>Also cleared from the cloud!</strong></p>
+        <h3>🔒 Clear All History</h3>
+        <p>This will permanently delete <strong>all</strong> outfit history and reset every item to available — <strong>including the cloud copy.</strong></p>
+        <input type="password" id="clearHistoryPassword" placeholder="Enter password to confirm" autocomplete="off" inputmode="text">
+        <div class="error-text" id="clearHistoryError">❌ Incorrect password</div>
         <div class="modal-buttons">
             <button class="modal-cancel" id="clearHistoryCancel">Cancel</button>
-            <button class="modal-confirm" id="clearHistoryConfirm">Yes, Clear All</button>
+            <button class="modal-confirm danger" id="clearHistoryConfirm">🗑️ Clear Everything</button>
         </div>
     </div>
 </div>
@@ -246,13 +248,15 @@
 <!-- Bulk Delete Modal -->
 <div class="modal-overlay" id="bulkDeleteModal">
     <div class="modal">
-        <h3>🗑️ Bulk Delete Items</h3>
-        <p>Are you sure you want to delete the following items?</p>
+        <h3>🔒 Bulk Delete Items</h3>
+        <p>Are you sure you want to permanently delete the following items?</p>
         <div class="bulk-delete-count" id="bulkDeleteCount">0</div>
         <p style="font-size:0.85rem; color:#7a4a5e;" id="bulkDeleteList"></p>
+        <input type="password" id="bulkDeletePassword" placeholder="Enter password to confirm" autocomplete="off">
+        <div class="error-text" id="bulkDeleteError">❌ Incorrect password</div>
         <div class="modal-buttons">
             <button class="modal-cancel" id="bulkDeleteCancel">Cancel</button>
-            <button class="modal-confirm" id="bulkDeleteConfirm">🗑️ Delete All</button>
+            <button class="modal-confirm danger" id="bulkDeleteConfirm">🗑️ Delete All</button>
         </div>
     </div>
 </div>
